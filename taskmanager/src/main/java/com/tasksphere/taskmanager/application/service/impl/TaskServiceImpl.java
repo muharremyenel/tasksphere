@@ -10,6 +10,7 @@ import com.tasksphere.taskmanager.application.service.TaskService;
 import com.tasksphere.taskmanager.domain.entity.Task;
 import com.tasksphere.taskmanager.domain.entity.User;
 import com.tasksphere.taskmanager.domain.entity.Tag;
+import com.tasksphere.taskmanager.domain.enums.UserRole;
 import com.tasksphere.taskmanager.domain.enums.TaskStatus;
 import com.tasksphere.taskmanager.domain.exception.ResourceNotFoundException;
 import com.tasksphere.taskmanager.infrastructure.persistence.repository.TaskRepository;
@@ -156,8 +157,19 @@ public class TaskServiceImpl implements TaskService {
     public void addTagToTask(Long taskId, Long tagId) {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
+                
+        if (!task.getCreatedBy().getEmail().equals(getCurrentUser().getEmail()) && 
+            !getCurrentUser().getRole().equals(UserRole.ADMIN)) {
+            throw new AccessDeniedException("You don't have permission to modify this task");
+        }
+
         Tag tag = tagRepository.findById(tagId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tag not found"));
+        
+        // Tag zaten ekli mi kontrolü
+        if (task.getTags().contains(tag)) {
+            throw new IllegalStateException("Tag is already added to this task");
+        }
         
         task.getTags().add(tag);
         taskRepository.save(task);
@@ -167,8 +179,19 @@ public class TaskServiceImpl implements TaskService {
     public void removeTagFromTask(Long taskId, Long tagId) {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
+                
+        if (!task.getCreatedBy().getEmail().equals(getCurrentUser().getEmail()) && 
+            !getCurrentUser().getRole().equals(UserRole.ADMIN)) {
+            throw new AccessDeniedException("You don't have permission to modify this task");
+        }
+
         Tag tag = tagRepository.findById(tagId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tag not found"));
+        
+        // Tag task'ta var mı kontrolü
+        if (!task.getTags().contains(tag)) {
+            throw new IllegalStateException("Tag is not added to this task");
+        }
         
         task.getTags().remove(tag);
         taskRepository.save(task);
