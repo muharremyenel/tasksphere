@@ -5,13 +5,16 @@ import com.tasksphere.taskmanager.application.dto.task.TaskResponse;
 import com.tasksphere.taskmanager.application.dto.task.UpdateTaskStatusRequest;
 import com.tasksphere.taskmanager.application.dto.task.UpdateTaskRequest;
 import com.tasksphere.taskmanager.application.dto.task.TaskSearchRequest;
+import com.tasksphere.taskmanager.application.dto.tag.TagResponse;
 import com.tasksphere.taskmanager.application.service.TaskService;
 import com.tasksphere.taskmanager.domain.entity.Task;
 import com.tasksphere.taskmanager.domain.entity.User;
+import com.tasksphere.taskmanager.domain.entity.Tag;
 import com.tasksphere.taskmanager.domain.enums.TaskStatus;
 import com.tasksphere.taskmanager.domain.exception.ResourceNotFoundException;
 import com.tasksphere.taskmanager.infrastructure.persistence.repository.TaskRepository;
 import com.tasksphere.taskmanager.infrastructure.persistence.repository.UserRepository;
+import com.tasksphere.taskmanager.infrastructure.persistence.repository.TagRepository;
 import com.tasksphere.taskmanager.infrastructure.persistence.specification.TaskSpecification;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -21,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.ArrayList;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +33,7 @@ public class TaskServiceImpl implements TaskService {
 
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
+    private final TagRepository tagRepository;
 
     @Override
     public TaskResponse createTask(CreateTaskRequest request) {
@@ -144,6 +149,44 @@ public class TaskServiceImpl implements TaskService {
         return taskRepository.findAll(TaskSpecification.withSearchCriteria(request))
                 .stream()
                 .map(this::mapToTaskResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public void addTagToTask(Long taskId, Long tagId) {
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
+        Tag tag = tagRepository.findById(tagId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tag not found"));
+        
+        task.getTags().add(tag);
+        taskRepository.save(task);
+    }
+
+    @Override
+    public void removeTagFromTask(Long taskId, Long tagId) {
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
+        Tag tag = tagRepository.findById(tagId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tag not found"));
+        
+        task.getTags().remove(tag);
+        taskRepository.save(task);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TagResponse> getTaskTags(Long taskId) {
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
+        
+        return new ArrayList<>(task.getTags()).stream()
+                .map(tag -> TagResponse.builder()
+                        .id(tag.getId())
+                        .name(tag.getName())
+                        .colorHex(tag.getColorHex())
+                        .usageCount((long) tag.getTasks().size())
+                        .build())
                 .collect(Collectors.toList());
     }
 

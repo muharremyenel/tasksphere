@@ -5,6 +5,7 @@ import com.tasksphere.taskmanager.application.dto.task.TaskResponse;
 import com.tasksphere.taskmanager.application.dto.task.UpdateTaskStatusRequest;
 import com.tasksphere.taskmanager.application.dto.task.UpdateTaskRequest;
 import com.tasksphere.taskmanager.application.dto.task.TaskSearchRequest;
+import com.tasksphere.taskmanager.application.dto.tag.TagResponse;
 import com.tasksphere.taskmanager.application.service.TaskService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -57,5 +58,26 @@ public class TaskController {
     @GetMapping("/search")
     public ResponseEntity<List<TaskResponse>> searchTasks(TaskSearchRequest request) {
         return ResponseEntity.ok(taskService.searchTasks(request));
+    }
+
+    @PostMapping("/{taskId}/tags/{tagId}")
+    public ResponseEntity<Void> addTagToTask(
+            @PathVariable Long taskId,
+            @PathVariable Long tagId) {
+        taskService.addTagToTask(taskId, tagId);
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/{taskId}/tags/{tagId}")
+    public ResponseEntity<Void> removeTagFromTask(
+            @PathVariable Long taskId,
+            @PathVariable Long tagId) {
+        taskService.removeTagFromTask(taskId, tagId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{taskId}/tags")
+    public ResponseEntity<List<TagResponse>> getTaskTags(@PathVariable Long taskId) {
+        return ResponseEntity.ok(taskService.getTaskTags(taskId));
     }
 } 

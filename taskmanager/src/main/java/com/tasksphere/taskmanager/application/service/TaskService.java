@@ -5,6 +5,7 @@ import com.tasksphere.taskmanager.application.dto.task.TaskResponse;
 import com.tasksphere.taskmanager.application.dto.task.UpdateTaskStatusRequest;
 import com.tasksphere.taskmanager.application.dto.task.UpdateTaskRequest;
 import com.tasksphere.taskmanager.application.dto.task.TaskSearchRequest;
+import com.tasksphere.taskmanager.application.dto.tag.TagResponse;
 
 import java.util.List;
 
@@ -16,4 +17,7 @@ public interface TaskService {
     TaskResponse updateTask(Long taskId, UpdateTaskRequest request);
     void deleteTask(Long taskId);
     List<TaskResponse> searchTasks(TaskSearchRequest request);
+    void addTagToTask(Long taskId, Long tagId);
+    void removeTagFromTask(Long taskId, Long tagId);
+    List<TagResponse> getTaskTags(Long taskId);
 } 

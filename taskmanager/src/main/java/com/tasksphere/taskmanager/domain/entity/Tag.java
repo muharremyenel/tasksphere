@@ -5,6 +5,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.Builder;
 import lombok.AllArgsConstructor;
+import lombok.ToString;
+import lombok.EqualsAndHashCode;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -15,6 +17,7 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "tags")
+@EqualsAndHashCode(exclude = {"tasks"})
 public class Tag {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -30,7 +33,8 @@ public class Tag {
     @JoinColumn(name = "creator_id", nullable = false)
     private User creator;
 
-    @ManyToMany(mappedBy = "tags")
+    @ManyToMany(mappedBy = "tags", fetch = FetchType.EAGER)
     @Builder.Default
+    @ToString.Exclude
     private Set<Task> tasks = new HashSet<>();
 } 

@@ -7,6 +7,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -18,6 +19,7 @@ import java.util.Set;
 @AllArgsConstructor
 @Entity
 @Table(name = "tasks")
+@EqualsAndHashCode(exclude = {"tags"})
 public class Task {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -54,7 +56,7 @@ public class Task {
     @JoinColumn(name = "category_id")
     private Category category;
 
-    @ManyToMany
+    @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
         name = "task_tags",
         joinColumns = @JoinColumn(name = "task_id"),
