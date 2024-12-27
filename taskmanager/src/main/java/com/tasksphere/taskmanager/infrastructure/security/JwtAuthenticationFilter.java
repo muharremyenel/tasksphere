@@ -13,6 +13,8 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import com.tasksphere.taskmanager.application.service.TokenBlacklistService;
+import com.tasksphere.taskmanager.domain.exception.InvalidTokenException;
 
 import java.io.IOException;
 
@@ -22,6 +24,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
+    private final TokenBlacklistService tokenBlacklistService;
 
     @Override
     protected void doFilterInternal(
@@ -56,6 +59,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(authToken);
             }
         }
+
+        if (tokenBlacklistService.isBlacklisted(jwt)) {
+            throw new InvalidTokenException("Token has been invalidated");
+        }
+
         filterChain.doFilter(request, response);
     }
 } 
