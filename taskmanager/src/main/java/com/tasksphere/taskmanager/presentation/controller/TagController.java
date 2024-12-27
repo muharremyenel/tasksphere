@@ -6,6 +6,7 @@ import com.tasksphere.taskmanager.application.service.TagService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 
 import java.util.List;
 
@@ -17,7 +18,7 @@ public class TagController {
     private final TagService tagService;
 
     @PostMapping
-    public ResponseEntity<TagResponse> createTag(@RequestBody CreateTagRequest request) {
+    public ResponseEntity<TagResponse> createTag(@Valid @RequestBody CreateTagRequest request) {
         return ResponseEntity.ok(tagService.createTag(request));
     }
 

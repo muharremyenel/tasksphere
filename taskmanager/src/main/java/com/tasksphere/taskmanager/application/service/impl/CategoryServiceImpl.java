@@ -31,7 +31,7 @@ public class CategoryServiceImpl implements CategoryService {
         Category category = Category.builder()
                 .name(request.getName())
                 .description(request.getDescription())
-                .colorHex(request.getColor())
+                .colorHex(request.getColorHex())
                 .creator(currentUser)
                 .build();
 

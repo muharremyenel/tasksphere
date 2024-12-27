@@ -10,7 +10,8 @@ import com.tasksphere.taskmanager.application.service.TaskService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.security.access.prepost.PreAuthorize;
+//import org.springframework.security.access.prepost.PreAuthorize;
+import jakarta.validation.Valid;
 
 import java.util.List;
 
@@ -22,7 +23,7 @@ public class TaskController {
     private final TaskService taskService;
 
     @PostMapping
-    public ResponseEntity<TaskResponse> createTask(@RequestBody CreateTaskRequest request) {
+    public ResponseEntity<TaskResponse> createTask(@Valid @RequestBody CreateTaskRequest request) {
         return ResponseEntity.ok(taskService.createTask(request));
     }
 
@@ -39,14 +40,14 @@ public class TaskController {
     @PatchMapping("/{taskId}/status")
     public ResponseEntity<TaskResponse> updateTaskStatus(
             @PathVariable Long taskId,
-            @RequestBody UpdateTaskStatusRequest request) {
+            @Valid @RequestBody UpdateTaskStatusRequest request) {
         return ResponseEntity.ok(taskService.updateTaskStatus(taskId, request));
     }
 
     @PutMapping("/{taskId}")
     public ResponseEntity<TaskResponse> updateTask(
             @PathVariable Long taskId,
-            @RequestBody UpdateTaskRequest request) {
+            @Valid @RequestBody UpdateTaskRequest request) {
         return ResponseEntity.ok(taskService.updateTask(taskId, request));
     }
 

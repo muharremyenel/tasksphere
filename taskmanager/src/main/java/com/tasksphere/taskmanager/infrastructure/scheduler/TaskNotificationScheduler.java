@@ -4,7 +4,7 @@ import com.tasksphere.taskmanager.application.service.NotificationService;
 import com.tasksphere.taskmanager.domain.entity.Task;
 import com.tasksphere.taskmanager.domain.enums.NotificationType;
 import com.tasksphere.taskmanager.domain.enums.TaskStatus;
-import com.tasksphere.taskmanager.infrastructure.persistence.repository.NotificationRepository;
+//import com.tasksphere.taskmanager.infrastructure.persistence.repository.NotificationRepository;
 import com.tasksphere.taskmanager.infrastructure.persistence.repository.TaskRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,8 +14,8 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Set;
-import java.util.HashSet;
+//import java.util.Set;
+//import java.util.HashSet;
 
 @Slf4j
 @Component
@@ -23,7 +23,7 @@ import java.util.HashSet;
 public class TaskNotificationScheduler {
 
     private final TaskRepository taskRepository;
-    private final NotificationRepository notificationRepository;
+    //private final NotificationRepository notificationRepository;
     private final NotificationService notificationService;
 
     @Scheduled(cron = "0 0 9 * * *")
