@@ -36,6 +36,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/auth/**").permitAll()
                 .requestMatchers("/error").permitAll()
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                // Admin yetkileri
+                .requestMatchers(HttpMethod.PUT, "/api/v1/tasks/{taskId}").hasAnyRole("ADMIN", "USER")
+                .requestMatchers(HttpMethod.PATCH, "/api/v1/tasks/{taskId}/status").hasAnyRole("ADMIN", "USER")
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

@@ -20,4 +20,7 @@ public interface TaskService {
     void addTagToTask(Long taskId, Long tagId);
     void removeTagFromTask(Long taskId, Long tagId);
     List<TagResponse> getTaskTags(Long taskId);
+    void addCollaborator(Long taskId, Long userId);
+    void removeCollaborator(Long taskId, Long userId);
+    List<TaskResponse> getCollaborativeTasks();
 } 

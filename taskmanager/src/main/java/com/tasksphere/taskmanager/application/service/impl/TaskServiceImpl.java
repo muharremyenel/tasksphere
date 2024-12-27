@@ -10,7 +10,7 @@ import com.tasksphere.taskmanager.application.service.TaskService;
 import com.tasksphere.taskmanager.domain.entity.Task;
 import com.tasksphere.taskmanager.domain.entity.User;
 import com.tasksphere.taskmanager.domain.entity.Tag;
-import com.tasksphere.taskmanager.domain.enums.UserRole;
+import com.tasksphere.taskmanager.domain.enums.Role;
 import com.tasksphere.taskmanager.domain.enums.TaskStatus;
 import com.tasksphere.taskmanager.domain.exception.ResourceNotFoundException;
 import com.tasksphere.taskmanager.infrastructure.persistence.repository.TaskRepository;
@@ -102,11 +102,25 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
 
-        // Sadece görevi oluşturan kişi güncelleyebilir
+        // Admin her task'i güncelleyebilir
+        if (currentUser.getRole().equals(Role.ROLE_ADMIN)) {
+            updateTaskFields(task, request);
+            Task updatedTask = taskRepository.save(task);
+            return mapToTaskResponse(updatedTask);
+        }
+
+        // Admin değilse, sadece kendi oluşturduğu task'leri güncelleyebilir
         if (!task.getCreatedBy().getId().equals(currentUser.getId())) {
             throw new AccessDeniedException("You don't have permission to update this task");
         }
 
+        updateTaskFields(task, request);
+        Task updatedTask = taskRepository.save(task);
+        return mapToTaskResponse(updatedTask);
+    }
+
+    // Task alanlarını güncelleyen yardımcı metod
+    private void updateTaskFields(Task task, UpdateTaskRequest request) {
         if (request.getTitle() != null) {
             task.setTitle(request.getTitle());
         }
@@ -124,9 +138,6 @@ public class TaskServiceImpl implements TaskService {
                     .orElseThrow(() -> new ResourceNotFoundException("Assigned user not found"));
             task.setAssignedTo(assignedTo);
         }
-
-        Task updatedTask = taskRepository.save(task);
-        return mapToTaskResponse(updatedTask);
     }
 
     @Override
@@ -159,7 +170,7 @@ public class TaskServiceImpl implements TaskService {
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
                 
         if (!task.getCreatedBy().getEmail().equals(getCurrentUser().getEmail()) && 
-            !getCurrentUser().getRole().equals(UserRole.ADMIN)) {
+            !getCurrentUser().getRole().equals(Role.ROLE_ADMIN)) {
             throw new AccessDeniedException("You don't have permission to modify this task");
         }
 
@@ -181,7 +192,7 @@ public class TaskServiceImpl implements TaskService {
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
                 
         if (!task.getCreatedBy().getEmail().equals(getCurrentUser().getEmail()) && 
-            !getCurrentUser().getRole().equals(UserRole.ADMIN)) {
+            !getCurrentUser().getRole().equals(Role.ROLE_ADMIN)) {
             throw new AccessDeniedException("You don't have permission to modify this task");
         }
 
@@ -213,6 +224,37 @@ public class TaskServiceImpl implements TaskService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public void addCollaborator(Long taskId, Long userId) {
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                
+        task.getCollaborators().add(user);
+        taskRepository.save(task);
+    }
+
+    @Override
+    public void removeCollaborator(Long taskId, Long userId) {
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                
+        task.getCollaborators().remove(user);
+        taskRepository.save(task);
+    }
+
+    @Override
+    public List<TaskResponse> getCollaborativeTasks() {
+        User currentUser = getCurrentUser();
+        return taskRepository.findByCollaboratorsContaining(currentUser)
+                .stream()
+                .map(this::mapToTaskResponse)
+                .collect(Collectors.toList());
+    }
+
     private User getCurrentUser() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         return userRepository.findByEmail(email)
@@ -230,6 +272,9 @@ public class TaskServiceImpl implements TaskService {
                 .dueDate(task.getDueDate())
                 .createdBy(mapToUserSummary(task.getCreatedBy()))
                 .assignedTo(task.getAssignedTo() != null ? mapToUserSummary(task.getAssignedTo()) : null)
+                .collaborators(task.getCollaborators().stream()
+                        .map(this::mapToUserSummary)
+                        .collect(Collectors.toSet()))
                 .build();
     }
 

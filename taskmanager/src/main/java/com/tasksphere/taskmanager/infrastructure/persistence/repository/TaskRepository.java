@@ -1,6 +1,7 @@
 package com.tasksphere.taskmanager.infrastructure.persistence.repository;
 
 import com.tasksphere.taskmanager.domain.entity.Task;
+import com.tasksphere.taskmanager.domain.entity.User;
 import com.tasksphere.taskmanager.domain.enums.TaskPriority;
 import com.tasksphere.taskmanager.domain.enums.TaskStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -37,4 +38,6 @@ public interface TaskRepository extends JpaRepository<Task, Long>, JpaSpecificat
             @Param("categoryId") Long categoryId,
             @Param("assignedToId") Long assignedToId
     );
+
+    List<Task> findByCollaboratorsContaining(User user);
 } 

