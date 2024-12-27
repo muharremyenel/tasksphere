@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: tasksphere-db
+    environment:
+      POSTGRES_DB: tasksphere
+      POSTGRES_USER: tasksphere_user
+      POSTGRES_PASSWORD: tasksphere_pass
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - tasksphere-network
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: tasksphere-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@tasksphere.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5051:80"
+    depends_on:
+      - postgres
+    networks:
+      - tasksphere-network
+
+volumes:
+  postgres_data:
+
+networks:
+  tasksphere-network:
+    driver: bridge 
