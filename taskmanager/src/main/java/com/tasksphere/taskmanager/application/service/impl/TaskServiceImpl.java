@@ -17,6 +17,8 @@ import com.tasksphere.taskmanager.infrastructure.persistence.repository.TaskRepo
 import com.tasksphere.taskmanager.infrastructure.persistence.repository.UserRepository;
 import com.tasksphere.taskmanager.infrastructure.persistence.repository.TagRepository;
 import com.tasksphere.taskmanager.infrastructure.persistence.specification.TaskSpecification;
+import com.tasksphere.taskmanager.application.service.NotificationService;
+import com.tasksphere.taskmanager.domain.enums.NotificationType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.access.AccessDeniedException;
@@ -35,6 +37,7 @@ public class TaskServiceImpl implements TaskService {
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final TagRepository tagRepository;
+    private final NotificationService notificationService;
 
     @Override
     public TaskResponse createTask(CreateTaskRequest request) {
@@ -54,6 +57,16 @@ public class TaskServiceImpl implements TaskService {
                 .build();
 
         Task savedTask = taskRepository.save(task);
+
+        if (assignedTo != null) {
+            notificationService.createNotification(
+                assignedTo,
+                savedTask,
+                NotificationType.TASK_ASSIGNED,
+                String.format("You have been assigned to task: %s", request.getTitle())
+            );
+        }
+
         return mapToTaskResponse(savedTask);
     }
 
@@ -92,6 +105,19 @@ public class TaskServiceImpl implements TaskService {
 
         task.setStatus(request.getStatus());
         Task updatedTask = taskRepository.save(task);
+
+        // Task'in sahibine bildirim gönder
+        if (!task.getCreatedBy().getId().equals(currentUser.getId())) {
+            notificationService.createNotification(
+                task.getCreatedBy(),
+                updatedTask,
+                NotificationType.TASK_STATUS_CHANGED,
+                String.format("Task status changed to %s by %s", 
+                    request.getStatus(),
+                    currentUser.getName())
+            );
+        }
+
         return mapToTaskResponse(updatedTask);
     }
 
@@ -233,6 +259,14 @@ public class TaskServiceImpl implements TaskService {
                 
         task.getCollaborators().add(user);
         taskRepository.save(task);
+
+        // Yeni collaborator'a bildirim gönder
+        notificationService.createNotification(
+            user,
+            task,
+            NotificationType.ADDED_AS_COLLABORATOR,
+            String.format("You have been added as a collaborator to task: %s", task.getTitle())
+        );
     }
 
     @Override
