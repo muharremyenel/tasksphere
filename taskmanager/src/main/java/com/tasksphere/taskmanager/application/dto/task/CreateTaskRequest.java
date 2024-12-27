@@ -29,4 +29,7 @@ public class CreateTaskRequest {
     private LocalDateTime dueDate;
 
     private Long assignedToId;
+
+    @NotNull(message = "Category is required")
+    private Long categoryId;
 } 

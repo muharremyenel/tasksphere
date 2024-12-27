@@ -2,10 +2,12 @@ package com.tasksphere.taskmanager.application.service.impl;
 
 import com.tasksphere.taskmanager.application.dto.category.CategoryResponse;
 import com.tasksphere.taskmanager.application.dto.category.CreateCategoryRequest;
+import com.tasksphere.taskmanager.application.dto.category.UpdateCategoryRequest;
 import com.tasksphere.taskmanager.application.service.CategoryService;
 import com.tasksphere.taskmanager.domain.entity.Category;
 import com.tasksphere.taskmanager.domain.entity.User;
 import com.tasksphere.taskmanager.domain.exception.ResourceNotFoundException;
+import com.tasksphere.taskmanager.domain.exception.UnauthorizedAccessException;
 import com.tasksphere.taskmanager.infrastructure.persistence.repository.CategoryRepository;
 import com.tasksphere.taskmanager.infrastructure.persistence.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -63,12 +65,24 @@ public class CategoryServiceImpl implements CategoryService {
         categoryRepository.deleteById(id);
     }
 
+    @Override
+    public CategoryResponse updateCategory(Long id, UpdateCategoryRequest request) {
+        Category category = categoryRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
+        
+        category.setName(request.getName());
+        category.setDescription(request.getDescription());
+        
+        Category updatedCategory = categoryRepository.save(category);
+        return mapToCategoryResponse(updatedCategory);
+    }
+
     private CategoryResponse mapToCategoryResponse(Category category) {
         return CategoryResponse.builder()
                 .id(category.getId())
                 .name(category.getName())
                 .description(category.getDescription())
-                .color(category.getColorHex())
+                .colorHex(category.getColorHex())
                 .taskCount((long) category.getTasks().size())
                 .build();
     }

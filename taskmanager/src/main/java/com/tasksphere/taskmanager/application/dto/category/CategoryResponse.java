@@ -9,6 +9,6 @@ public class CategoryResponse {
     private Long id;
     private String name;
     private String description;
-    private String color;
+    private String colorHex;
     private Long taskCount;
 } 

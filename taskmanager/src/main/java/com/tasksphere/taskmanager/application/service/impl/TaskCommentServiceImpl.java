@@ -10,6 +10,10 @@ import com.tasksphere.taskmanager.domain.exception.ResourceNotFoundException;
 import com.tasksphere.taskmanager.infrastructure.persistence.repository.TaskCommentRepository;
 import com.tasksphere.taskmanager.infrastructure.persistence.repository.TaskRepository;
 import com.tasksphere.taskmanager.infrastructure.persistence.repository.UserRepository;
+import com.tasksphere.taskmanager.domain.exception.UnauthorizedAccessException;
+import com.tasksphere.taskmanager.domain.enums.NotificationType;
+import com.tasksphere.taskmanager.application.service.NotificationService;
+import com.tasksphere.taskmanager.domain.enums.Role;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -27,12 +31,18 @@ public class TaskCommentServiceImpl implements TaskCommentService {
     private final TaskCommentRepository commentRepository;
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     @Override
     public CommentResponse addComment(Long taskId, CreateCommentRequest request) {
         User currentUser = getCurrentUser();
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
+
+        // Yorum yapma yetkisi kontrolü
+        if (!canAddComment(task, currentUser)) {
+            throw new UnauthorizedAccessException("You don't have permission to comment on this task");
+        }
 
         TaskComment comment = TaskComment.builder()
                 .content(request.getContent())
@@ -41,12 +51,41 @@ public class TaskCommentServiceImpl implements TaskCommentService {
                 .build();
 
         TaskComment savedComment = commentRepository.save(comment);
+
+        // Task sahibine ve atanan kişiye bildirim gönder (eğer yorum yapan kişi değillerse)
+        if (!task.getCreatedBy().equals(currentUser)) {
+            notificationService.createNotification(
+                task.getCreatedBy(),
+                task,
+                NotificationType.TASK_COMMENTED,
+                String.format("%s commented on task: %s", currentUser.getName(), task.getTitle())
+            );
+        }
+
+        if (task.getAssignedTo() != null && !task.getAssignedTo().equals(currentUser)) {
+            notificationService.createNotification(
+                task.getAssignedTo(),
+                task,
+                NotificationType.TASK_COMMENTED,
+                String.format("%s commented on task: %s", currentUser.getName(), task.getTitle())
+            );
+        }
+
         return mapToCommentResponse(savedComment);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<CommentResponse> getTaskComments(Long taskId) {
+        User currentUser = getCurrentUser();
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
+
+        // Yorumları görüntüleme yetkisi kontrolü
+        if (!canViewComments(task, currentUser)) {
+            throw new UnauthorizedAccessException("You don't have permission to view comments on this task");
+        }
+
         return commentRepository.findByTaskId(taskId).stream()
                 .map(this::mapToCommentResponse)
                 .collect(Collectors.toList());
@@ -58,13 +97,33 @@ public class TaskCommentServiceImpl implements TaskCommentService {
         TaskComment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Comment not found"));
 
-        // Sadece yorumu yazan kişi veya görevin sahibi yorumu silebilir
-        if (!comment.getUser().getId().equals(currentUser.getId()) && 
-            !comment.getTask().getCreatedBy().getId().equals(currentUser.getId())) {
-            throw new AccessDeniedException("You don't have permission to delete this comment");
+        // Yorum silme yetkisi kontrolü
+        if (!canDeleteComment(comment, currentUser)) {
+            throw new UnauthorizedAccessException("You don't have permission to delete this comment");
         }
 
         commentRepository.delete(comment);
+    }
+
+    // Yetki kontrol metodları
+    private boolean canAddComment(Task task, User user) {
+        return user.getRole().equals(Role.ROLE_ADMIN) ||
+               task.getCreatedBy().equals(user) ||
+               task.getAssignedTo().equals(user) ||
+               task.getCollaborators().contains(user);
+    }
+
+    private boolean canViewComments(Task task, User user) {
+        return user.getRole().equals(Role.ROLE_ADMIN) ||
+               task.getCreatedBy().equals(user) ||
+               task.getAssignedTo().equals(user) ||
+               task.getCollaborators().contains(user);
+    }
+
+    private boolean canDeleteComment(TaskComment comment, User user) {
+        return user.getRole().equals(Role.ROLE_ADMIN) ||
+               comment.getUser().equals(user) ||
+               comment.getTask().getCreatedBy().equals(user);
     }
 
     private User getCurrentUser() {

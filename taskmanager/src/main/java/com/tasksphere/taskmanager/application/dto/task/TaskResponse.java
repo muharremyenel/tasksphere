@@ -21,6 +21,8 @@ public class TaskResponse {
     private UserSummary createdBy;
     private UserSummary assignedTo;
     private Set<UserSummary> collaborators;
+    private CategorySummary category;
+    private Set<TagSummary> tags;
 
     @Data
     @Builder
@@ -28,5 +30,21 @@ public class TaskResponse {
         private Long id;
         private String name;
         private String email;
+    }
+
+    @Data
+    @Builder
+    public static class CategorySummary {
+        private Long id;
+        private String name;
+        private String colorHex;
+    }
+
+    @Data
+    @Builder
+    public static class TagSummary {
+        private Long id;
+        private String name;
+        private String colorHex;
     }
 } 

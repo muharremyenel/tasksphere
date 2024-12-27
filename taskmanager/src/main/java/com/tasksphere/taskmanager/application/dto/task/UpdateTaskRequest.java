@@ -18,5 +18,6 @@ public class UpdateTaskRequest {
     private TaskPriority priority;
     private LocalDateTime dueDate;
     private Long assignedToId;
+    private Long categoryId;
     private Set<Long> collaboratorIds;
 } 

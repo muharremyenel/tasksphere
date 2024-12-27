@@ -10,12 +10,15 @@ import com.tasksphere.taskmanager.application.service.TaskService;
 import com.tasksphere.taskmanager.domain.entity.Task;
 import com.tasksphere.taskmanager.domain.entity.User;
 import com.tasksphere.taskmanager.domain.entity.Tag;
+import com.tasksphere.taskmanager.domain.entity.Category;
 import com.tasksphere.taskmanager.domain.enums.Role;
 import com.tasksphere.taskmanager.domain.enums.TaskStatus;
 import com.tasksphere.taskmanager.domain.exception.ResourceNotFoundException;
+import com.tasksphere.taskmanager.domain.exception.UnauthorizedAccessException;
 import com.tasksphere.taskmanager.infrastructure.persistence.repository.TaskRepository;
 import com.tasksphere.taskmanager.infrastructure.persistence.repository.UserRepository;
 import com.tasksphere.taskmanager.infrastructure.persistence.repository.TagRepository;
+import com.tasksphere.taskmanager.infrastructure.persistence.repository.CategoryRepository;
 import com.tasksphere.taskmanager.infrastructure.persistence.specification.TaskSpecification;
 import com.tasksphere.taskmanager.application.service.NotificationService;
 import com.tasksphere.taskmanager.domain.enums.NotificationType;
@@ -37,6 +40,7 @@ public class TaskServiceImpl implements TaskService {
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final TagRepository tagRepository;
+    private final CategoryRepository categoryRepository;
     private final NotificationService notificationService;
 
     @Override
@@ -46,6 +50,10 @@ public class TaskServiceImpl implements TaskService {
                 userRepository.findById(request.getAssignedToId())
                         .orElseThrow(() -> new ResourceNotFoundException("Assigned user not found")) : null;
 
+        // Kategori kontrolü
+        Category category = categoryRepository.findById(request.getCategoryId())
+                .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
+
         Task task = Task.builder()
                 .title(request.getTitle())
                 .description(request.getDescription())
@@ -54,6 +62,7 @@ public class TaskServiceImpl implements TaskService {
                 .dueDate(request.getDueDate())
                 .createdBy(currentUser)
                 .assignedTo(assignedTo)
+                .category(category)
                 .build();
 
         Task savedTask = taskRepository.save(task);
@@ -74,7 +83,7 @@ public class TaskServiceImpl implements TaskService {
     @Transactional(readOnly = true)
     public List<TaskResponse> getMyTasks() {
         User currentUser = getCurrentUser();
-        return taskRepository.findByAssignedToId(currentUser.getId())
+        return taskRepository.findByAssignedToOrCollaboratorsContaining(currentUser, currentUser)
                 .stream()
                 .map(this::mapToTaskResponse)
                 .collect(Collectors.toList());
@@ -84,6 +93,9 @@ public class TaskServiceImpl implements TaskService {
     @Transactional(readOnly = true)
     public List<TaskResponse> getCreatedTasks() {
         User currentUser = getCurrentUser();
+        if (!currentUser.getRole().equals(Role.ROLE_ADMIN)) {
+            throw new UnauthorizedAccessException("Only admins can view all created tasks");
+        }
         return taskRepository.findByCreatedById(currentUser.getId())
                 .stream()
                 .map(this::mapToTaskResponse)
@@ -97,28 +109,12 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
 
-        // Sadece görevi oluşturan veya atanan kişi durumu güncelleyebilir
-        if (!task.getCreatedBy().getId().equals(currentUser.getId()) && 
-            (task.getAssignedTo() == null || !task.getAssignedTo().getId().equals(currentUser.getId()))) {
-            throw new AccessDeniedException("You don't have permission to update this task");
+        if (!canUpdateTaskStatus(task, currentUser)) {
+            throw new UnauthorizedAccessException("You don't have permission to update this task's status");
         }
 
         task.setStatus(request.getStatus());
-        Task updatedTask = taskRepository.save(task);
-
-        // Task'in sahibine bildirim gönder
-        if (!task.getCreatedBy().getId().equals(currentUser.getId())) {
-            notificationService.createNotification(
-                task.getCreatedBy(),
-                updatedTask,
-                NotificationType.TASK_STATUS_CHANGED,
-                String.format("Task status changed to %s by %s", 
-                    request.getStatus(),
-                    currentUser.getName())
-            );
-        }
-
-        return mapToTaskResponse(updatedTask);
+        return mapToTaskResponse(taskRepository.save(task));
     }
 
     @Override
@@ -128,25 +124,18 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
 
-        // Admin her task'i güncelleyebilir
-        if (currentUser.getRole().equals(Role.ROLE_ADMIN)) {
-            updateTaskFields(task, request);
-            Task updatedTask = taskRepository.save(task);
-            return mapToTaskResponse(updatedTask);
+        if (!canUpdateTaskDetails(task, currentUser)) {
+            throw new UnauthorizedAccessException("You don't have permission to update this task");
         }
 
-        // Admin değilse, sadece kendi oluşturduğu task'leri güncelleyebilir
-        if (!task.getCreatedBy().getId().equals(currentUser.getId())) {
-            throw new AccessDeniedException("You don't have permission to update this task");
+        // Kategori kontrolü
+        if (request.getCategoryId() != null) {
+            Category category = categoryRepository.findById(request.getCategoryId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
+            task.setCategory(category);
         }
 
-        updateTaskFields(task, request);
-        Task updatedTask = taskRepository.save(task);
-        return mapToTaskResponse(updatedTask);
-    }
-
-    // Task alanlarını güncelleyen yardımcı metod
-    private void updateTaskFields(Task task, UpdateTaskRequest request) {
+        // Temel alanları güncelle
         if (request.getTitle() != null) {
             task.setTitle(request.getTitle());
         }
@@ -159,11 +148,26 @@ public class TaskServiceImpl implements TaskService {
         if (request.getDueDate() != null) {
             task.setDueDate(request.getDueDate());
         }
+
+        // Atanan kişiyi güncelle
         if (request.getAssignedToId() != null) {
             User assignedTo = userRepository.findById(request.getAssignedToId())
                     .orElseThrow(() -> new ResourceNotFoundException("Assigned user not found"));
-            task.setAssignedTo(assignedTo);
+            
+            // Eğer atanan kişi değiştiyse bildirim gönder
+            if (!assignedTo.equals(task.getAssignedTo())) {
+                task.setAssignedTo(assignedTo);
+                notificationService.createNotification(
+                    assignedTo,
+                    task,
+                    NotificationType.TASK_ASSIGNED,
+                    String.format("You have been assigned to task: %s", task.getTitle())
+                );
+            }
         }
+
+        Task updatedTask = taskRepository.save(task);
+        return mapToTaskResponse(updatedTask);
     }
 
     @Override
@@ -173,9 +177,9 @@ public class TaskServiceImpl implements TaskService {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
 
-        // Sadece görevi oluşturan kişi silebilir
-        if (!task.getCreatedBy().getId().equals(currentUser.getId())) {
-            throw new AccessDeniedException("You don't have permission to delete this task");
+        // Sadece görevi oluşturan kişi veya admin silebilir
+        if (!task.getCreatedBy().equals(currentUser) && !currentUser.getRole().equals(Role.ROLE_ADMIN)) {
+            throw new UnauthorizedAccessException("You don't have permission to delete this task");
         }
 
         taskRepository.delete(task);
@@ -184,7 +188,8 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional(readOnly = true)
     public List<TaskResponse> searchTasks(TaskSearchRequest request) {
-        return taskRepository.findAll(TaskSpecification.withSearchCriteria(request))
+        User currentUser = getCurrentUser();
+        return taskRepository.findAll(TaskSpecification.buildSpecification(request, currentUser))
                 .stream()
                 .map(this::mapToTaskResponse)
                 .collect(Collectors.toList());
@@ -192,18 +197,17 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public void addTagToTask(Long taskId, Long tagId) {
+        User currentUser = getCurrentUser();
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
                 
-        if (!task.getCreatedBy().getEmail().equals(getCurrentUser().getEmail()) && 
-            !getCurrentUser().getRole().equals(Role.ROLE_ADMIN)) {
-            throw new AccessDeniedException("You don't have permission to modify this task");
+        if (!canUpdateTaskDetails(task, currentUser)) {
+            throw new UnauthorizedAccessException("You don't have permission to modify this task");
         }
 
         Tag tag = tagRepository.findById(tagId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tag not found"));
         
-        // Tag zaten ekli mi kontrolü
         if (task.getTags().contains(tag)) {
             throw new IllegalStateException("Tag is already added to this task");
         }
@@ -214,18 +218,17 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public void removeTagFromTask(Long taskId, Long tagId) {
+        User currentUser = getCurrentUser();
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
                 
-        if (!task.getCreatedBy().getEmail().equals(getCurrentUser().getEmail()) && 
-            !getCurrentUser().getRole().equals(Role.ROLE_ADMIN)) {
-            throw new AccessDeniedException("You don't have permission to modify this task");
+        if (!canUpdateTaskDetails(task, currentUser)) {
+            throw new UnauthorizedAccessException("You don't have permission to modify this task");
         }
 
         Tag tag = tagRepository.findById(tagId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tag not found"));
         
-        // Tag task'ta var mı kontrolü
         if (!task.getTags().contains(tag)) {
             throw new IllegalStateException("Tag is not added to this task");
         }
@@ -252,8 +255,14 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public void addCollaborator(Long taskId, Long userId) {
+        User currentUser = getCurrentUser();
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
+
+        if (!canUpdateTaskDetails(task, currentUser)) {
+            throw new UnauthorizedAccessException("You don't have permission to add collaborators");
+        }
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
                 
@@ -309,6 +318,10 @@ public class TaskServiceImpl implements TaskService {
                 .collaborators(task.getCollaborators().stream()
                         .map(this::mapToUserSummary)
                         .collect(Collectors.toSet()))
+                .category(mapToCategorySummary(task.getCategory()))
+                .tags(task.getTags().stream()
+                        .map(this::mapToTagSummary)
+                        .collect(Collectors.toSet()))
                 .build();
     }
 
@@ -318,5 +331,43 @@ public class TaskServiceImpl implements TaskService {
                 .name(user.getName())
                 .email(user.getEmail())
                 .build();
+    }
+
+    private TaskResponse.CategorySummary mapToCategorySummary(Category category) {
+        return TaskResponse.CategorySummary.builder()
+                .id(category.getId())
+                .name(category.getName())
+                .colorHex(category.getColorHex())
+                .build();
+    }
+
+    private TaskResponse.TagSummary mapToTagSummary(Tag tag) {
+        return TaskResponse.TagSummary.builder()
+                .id(tag.getId())
+                .name(tag.getName())
+                .colorHex(tag.getColorHex())
+                .build();
+    }
+
+    // Yetki kontrolü için yardımcı metod
+    private boolean hasTaskAccess(Task task, User user) {
+        return user.getRole().equals(Role.ROLE_ADMIN) ||
+               task.getCreatedBy().equals(user) ||
+               task.getAssignedTo().equals(user) ||
+               task.getCollaborators().contains(user);
+    }
+
+    // Task durumu güncelleme yetkisi kontrolü
+    private boolean canUpdateTaskStatus(Task task, User user) {
+        return user.getRole().equals(Role.ROLE_ADMIN) ||
+               task.getAssignedTo().equals(user) ||
+               task.getCollaborators().contains(user) ||
+               task.getCreatedBy().equals(user);
+    }
+
+    // Task detayları güncelleme yetkisi kontrolü
+    private boolean canUpdateTaskDetails(Task task, User user) {
+        return user.getRole().equals(Role.ROLE_ADMIN) ||
+               task.getCreatedBy().equals(user);
     }
 } 

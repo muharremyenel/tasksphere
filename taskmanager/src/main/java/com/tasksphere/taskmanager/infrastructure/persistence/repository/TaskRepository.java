@@ -92,4 +92,6 @@ public interface TaskRepository extends JpaRepository<Task, Long>, JpaSpecificat
         @Param("notificationType") NotificationType notificationType,
         @Param("twentyFourHoursAgo") LocalDateTime twentyFourHoursAgo
     );
+
+    List<Task> findByAssignedToOrCollaboratorsContaining(User assignedTo, User collaborator);
 } 
