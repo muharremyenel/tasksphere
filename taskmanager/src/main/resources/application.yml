@@ -1,0 +1,52 @@
+# Database Configuration
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5435/tasksphere
+    username: tasksphere_user
+    password: tasksphere_pass
+  
+  # JPA Configuration
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  config:
+    import: optional:file:.env[.properties]
+  security:
+    debug: true
+
+# Server Configuration
+server:
+  port: 8080
+
+# Logging Configuration
+logging:
+  level:
+    root: INFO
+    org.springframework.web: DEBUG
+    org.springframework.security: TRACE
+    org.springframework.security.web.FilterChainProxy: DEBUG
+    com.tasksphere: DEBUG
+    com.tasksphere.taskmanager.infrastructure.scheduler: DEBUG
+
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+  expirationMs: 31536000000  # 1 yıl
+  issuer: TaskSphere 
+
+# Swagger Configuration
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+    doc-expansion: none 
