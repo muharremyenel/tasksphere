@@ -18,6 +18,9 @@ spring:
     import: optional:file:.env[.properties]
   security:
     debug: true
+  task:
+    scheduling:
+      enabled: true
 
 # Server Configuration
 server:
@@ -35,8 +38,8 @@ logging:
 
 # JWT Configuration
 jwt:
-  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
-  expirationMs: 31536000000  # 1 yıl
+  secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+  expiration: 86400000  # 24 saat
   issuer: TaskSphere 
 
 # Swagger Configuration

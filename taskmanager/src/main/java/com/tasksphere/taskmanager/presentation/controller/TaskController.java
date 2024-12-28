@@ -10,10 +10,22 @@ import com.tasksphere.taskmanager.application.service.TaskService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.tasksphere.taskmanager.application.dto.statistics.TaskStatisticsResponse;
 //import org.springframework.security.access.prepost.PreAuthorize;
 import jakarta.validation.Valid;
+import com.tasksphere.taskmanager.domain.entity.User;
+import com.tasksphere.taskmanager.infrastructure.persistence.repository.UserRepository;
+import com.tasksphere.taskmanager.domain.enums.Role;
+import com.tasksphere.taskmanager.domain.enums.TaskStatus;
+import com.tasksphere.taskmanager.infrastructure.persistence.repository.TaskRepository;
+import org.springframework.security.core.context.SecurityContextHolder;
+import java.time.LocalDateTime;
 
 import java.util.List;
+
+import com.tasksphere.taskmanager.application.dto.comment.CommentResponse;
+import com.tasksphere.taskmanager.application.dto.comment.CreateCommentRequest;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 @RestController
 @RequestMapping("/api/v1/tasks")
@@ -21,10 +33,17 @@ import java.util.List;
 public class TaskController {
 
     private final TaskService taskService;
+    private final TaskRepository taskRepository;
+    private final UserRepository userRepository;
 
     @PostMapping
     public ResponseEntity<TaskResponse> createTask(@Valid @RequestBody CreateTaskRequest request) {
         return ResponseEntity.ok(taskService.createTask(request));
+    }
+
+    @GetMapping
+    public ResponseEntity<List<TaskResponse>> getTasks() {
+        return ResponseEntity.ok(taskService.getTasks());
     }
 
     @GetMapping("/my-tasks")
@@ -88,19 +107,23 @@ public class TaskController {
         return ResponseEntity.ok(taskService.getCollaborativeTasks());
     }
 
-    @PostMapping("/{taskId}/collaborators/{userId}")
-    public ResponseEntity<Void> addCollaborator(
-            @PathVariable Long taskId,
-            @PathVariable Long userId) {
+    @PutMapping("/{taskId}/collaborators/{userId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> addCollaborator(@PathVariable Long taskId, @PathVariable Long userId) {
         taskService.addCollaborator(taskId, userId);
         return ResponseEntity.ok().build();
     }
 
     @DeleteMapping("/{taskId}/collaborators/{userId}")
-    public ResponseEntity<Void> removeCollaborator(
-            @PathVariable Long taskId,
-            @PathVariable Long userId) {
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> removeCollaborator(@PathVariable Long taskId, @PathVariable Long userId) {
         taskService.removeCollaborator(taskId, userId);
         return ResponseEntity.noContent().build();
     }
+
+    @GetMapping("/statistics")
+    public ResponseEntity<TaskStatisticsResponse> getStatistics() {
+        return ResponseEntity.ok(taskService.getStatistics());
+    }
+
 } 

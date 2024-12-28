@@ -2,7 +2,11 @@ export interface User {
   id: number
   name: string
   email: string
-  role: 'ROLE_ADMIN' | 'ROLE_USER'
+  role: string
+  team?: {
+    id: number
+    name: string
+  }
 }
 
 export interface AuthResponse {
@@ -16,5 +20,10 @@ export interface LoginRequest {
 }
 
 export interface RegisterRequest extends LoginRequest {
+  name: string
+}
+
+export interface TeamSummary {
+  id: number
   name: string
 } 

@@ -30,21 +30,26 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
-            .csrf(csrf -> csrf.disable())
+            .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers(
-                    "/api/v1/auth/**",
-                    "/v3/api-docs",
-                    "/v3/api-docs/**",
-                    "/swagger-ui/**",
-                    "/swagger-ui.html",
-                    "/swagger-resources",
-                    "/swagger-resources/**",
-                    "/configuration/ui",
-                    "/configuration/security",
-                    "/webjars/**",
-                    "/error"
-                ).permitAll()
+                .requestMatchers("/api/v1/auth/authenticate").permitAll()
+                .requestMatchers("/api/v1/users/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/tasks").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/v1/tasks/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/v1/tasks/**").hasRole("ADMIN")
+                .requestMatchers("/api/v1/categories/**").hasRole("ADMIN")
+                // User endpoints
+                .requestMatchers("/api/v1/users/**").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/v1/tasks/**").authenticated()
+                .requestMatchers(HttpMethod.PATCH, "/api/v1/tasks/*/status").authenticated()
+                .requestMatchers("/api/v1/comments/**").authenticated()
+                .requestMatchers("/api/v1/tags/**").authenticated()
+                .requestMatchers("/api/v1/teams/my-team").authenticated()
+                .requestMatchers("/api/v1/teams/{teamId}/members").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/v1/teams/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/v1/teams/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/v1/teams/**").hasRole("ADMIN")
+                .requestMatchers("/api/v1/tasks/{taskId}/comments/**").authenticated()
                 .anyRequest().authenticated()
             )
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -59,7 +64,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("*"));
+        configuration.setAllowedOrigins(List.of("http://localhost:5173"));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setExposedHeaders(List.of("*"));

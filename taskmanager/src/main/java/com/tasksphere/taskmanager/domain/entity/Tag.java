@@ -1,23 +1,21 @@
 package com.tasksphere.taskmanager.domain.entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.Builder;
-import lombok.AllArgsConstructor;
-import lombok.ToString;
-import lombok.EqualsAndHashCode;
 
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
-@Data
 @Entity
+@Table(name = "tags")
+@Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "tags")
-@EqualsAndHashCode(exclude = {"tasks"})
 public class Tag {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -26,15 +24,10 @@ public class Tag {
     @Column(nullable = false)
     private String name;
 
-    @Column(name = "color_hex")
+    @Column(name = "color_hex", nullable = false)
     private String colorHex;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "creator_id", nullable = false)
-    private User creator;
-
-    @ManyToMany(mappedBy = "tags", fetch = FetchType.EAGER)
+    @ManyToMany(mappedBy = "tags")
     @Builder.Default
-    @ToString.Exclude
     private Set<Task> tasks = new HashSet<>();
 } 

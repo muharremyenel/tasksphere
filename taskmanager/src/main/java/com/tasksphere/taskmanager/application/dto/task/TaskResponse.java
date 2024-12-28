@@ -1,11 +1,14 @@
 package com.tasksphere.taskmanager.application.dto.task;
 
-import com.tasksphere.taskmanager.domain.enums.TaskPriority;
+import com.tasksphere.taskmanager.application.dto.user.UserSummary;
+import com.tasksphere.taskmanager.application.dto.comment.CommentResponse;
 import com.tasksphere.taskmanager.domain.enums.TaskStatus;
+import com.tasksphere.taskmanager.domain.enums.TaskPriority;
 import lombok.Builder;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Set;
 
 @Data
@@ -20,9 +23,10 @@ public class TaskResponse {
     private LocalDateTime dueDate;
     private UserSummary createdBy;
     private UserSummary assignedTo;
-    private Set<UserSummary> collaborators;
     private CategorySummary category;
     private Set<TagSummary> tags;
+    private Set<UserSummary> collaborators;
+    private List<CommentResponse> recentComments;
 
     @Data
     @Builder

@@ -44,6 +44,10 @@ public class User implements UserDetails {
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "team_id")
+    private Team team;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
@@ -81,5 +85,10 @@ public class User implements UserDetails {
     @Override
     public boolean isEnabled() {
         return enabled;
+    }
+
+    public boolean isInSameTeam(User other) {
+        return this.team != null && other.team != null 
+            && this.team.getId().equals(other.team.getId());
     }
 } 

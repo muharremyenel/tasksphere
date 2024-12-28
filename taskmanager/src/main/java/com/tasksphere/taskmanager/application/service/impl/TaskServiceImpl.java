@@ -1,130 +1,112 @@
 package com.tasksphere.taskmanager.application.service.impl;
 
-import com.tasksphere.taskmanager.application.dto.task.CreateTaskRequest;
-import com.tasksphere.taskmanager.application.dto.task.TaskResponse;
-import com.tasksphere.taskmanager.application.dto.task.UpdateTaskStatusRequest;
-import com.tasksphere.taskmanager.application.dto.task.UpdateTaskRequest;
-import com.tasksphere.taskmanager.application.dto.task.TaskSearchRequest;
+import com.tasksphere.taskmanager.application.dto.task.*;
 import com.tasksphere.taskmanager.application.dto.tag.TagResponse;
+import com.tasksphere.taskmanager.application.dto.comment.*;
+import com.tasksphere.taskmanager.application.dto.statistics.TaskStatisticsResponse;
 import com.tasksphere.taskmanager.application.service.TaskService;
-import com.tasksphere.taskmanager.domain.entity.Task;
-import com.tasksphere.taskmanager.domain.entity.User;
-import com.tasksphere.taskmanager.domain.entity.Tag;
-import com.tasksphere.taskmanager.domain.entity.Category;
-import com.tasksphere.taskmanager.domain.enums.Role;
-import com.tasksphere.taskmanager.domain.enums.TaskStatus;
-import com.tasksphere.taskmanager.domain.exception.ResourceNotFoundException;
-import com.tasksphere.taskmanager.domain.exception.UnauthorizedAccessException;
-import com.tasksphere.taskmanager.infrastructure.persistence.repository.TaskRepository;
-import com.tasksphere.taskmanager.infrastructure.persistence.repository.UserRepository;
-import com.tasksphere.taskmanager.infrastructure.persistence.repository.TagRepository;
-import com.tasksphere.taskmanager.infrastructure.persistence.repository.CategoryRepository;
-import com.tasksphere.taskmanager.infrastructure.persistence.specification.TaskSpecification;
 import com.tasksphere.taskmanager.application.service.NotificationService;
-import com.tasksphere.taskmanager.domain.enums.NotificationType;
+import com.tasksphere.taskmanager.domain.entity.*;
+import com.tasksphere.taskmanager.domain.enums.*;
+import com.tasksphere.taskmanager.domain.exception.*;
+import com.tasksphere.taskmanager.infrastructure.persistence.repository.*;
+import com.tasksphere.taskmanager.infrastructure.persistence.specification.TaskSpecification;
+import com.tasksphere.taskmanager.application.dto.task.TaskResponse.UserSummary;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.access.prepost.PreAuthorize;
 
-import java.util.List;
+import java.time.LocalDateTime;
+import java.util.*;
 import java.util.stream.Collectors;
-import java.util.ArrayList;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class TaskServiceImpl implements TaskService {
-
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final TagRepository tagRepository;
     private final CategoryRepository categoryRepository;
+    private final CommentRepository commentRepository;
     private final NotificationService notificationService;
 
     @Override
+    public List<TaskResponse> getTasks() {
+        User currentUser = getCurrentUser();
+        List<Task> tasks;
+        
+        if (currentUser.getRole() == Role.ROLE_ADMIN) {
+            tasks = taskRepository.findAll();
+        } else {
+            tasks = taskRepository.findByAssignedToOrCollaboratorsContaining(currentUser, currentUser);
+        }
+        
+        return tasks.stream()
+            .map(this::mapToTaskResponse)
+            .collect(Collectors.toList());
+    }
+
+    @Override
+    @PreAuthorize("hasRole('ADMIN')")
     public TaskResponse createTask(CreateTaskRequest request) {
         User currentUser = getCurrentUser();
-        User assignedTo = request.getAssignedToId() != null ?
-                userRepository.findById(request.getAssignedToId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Assigned user not found")) : null;
+        User assignedTo = null;
+        Category category = null;
+        Set<Tag> tags = new HashSet<>();
 
-        // Kategori kontrolü
-        Category category = categoryRepository.findById(request.getCategoryId())
+        // Assigned user check
+        if (request.getAssignedToId() != null) {
+            assignedTo = userRepository.findById(request.getAssignedToId())
+                .orElseThrow(() -> new ResourceNotFoundException("Assigned user not found"));
+            
+            // Team check
+            if (!isInSameTeam(currentUser, assignedTo)) {
+                throw new UnauthorizedAccessException("Cannot assign task to user from different team");
+            }
+        }
+
+        // Category check
+        if (request.getCategoryId() != null) {
+            category = categoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
+        }
+
+        // Tags check
+        if (request.getTagIds() != null && !request.getTagIds().isEmpty()) {
+            tags = new HashSet<>(tagRepository.findAllById(request.getTagIds()));
+        }
 
         Task task = Task.builder()
-                .title(request.getTitle())
-                .description(request.getDescription())
-                .status(TaskStatus.TODO)
-                .priority(request.getPriority())
-                .dueDate(request.getDueDate())
-                .createdBy(currentUser)
-                .assignedTo(assignedTo)
-                .category(category)
-                .build();
+            .title(request.getTitle())
+            .description(request.getDescription())
+            .status(request.getStatus() != null ? request.getStatus() : TaskStatus.TODO)
+            .priority(request.getPriority())
+            .dueDate(request.getDueDate())
+            .createdBy(currentUser)
+            .assignedTo(assignedTo)
+            .category(category)
+            .tags(tags)
+            .build();
 
         Task savedTask = taskRepository.save(task);
 
         if (assignedTo != null) {
-            notificationService.createNotification(
-                assignedTo,
-                savedTask,
-                NotificationType.TASK_ASSIGNED,
-                String.format("You have been assigned to task: %s", request.getTitle())
-            );
+            notificationService.notifyTaskAssignment(savedTask);
         }
 
         return mapToTaskResponse(savedTask);
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public List<TaskResponse> getMyTasks() {
-        User currentUser = getCurrentUser();
-        return taskRepository.findByAssignedToOrCollaboratorsContaining(currentUser, currentUser)
-                .stream()
-                .map(this::mapToTaskResponse)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<TaskResponse> getCreatedTasks() {
-        User currentUser = getCurrentUser();
-        if (!currentUser.getRole().equals(Role.ROLE_ADMIN)) {
-            throw new UnauthorizedAccessException("Only admins can view all created tasks");
-        }
-        return taskRepository.findByCreatedById(currentUser.getId())
-                .stream()
-                .map(this::mapToTaskResponse)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    @Transactional
-    public TaskResponse updateTaskStatus(Long taskId, UpdateTaskStatusRequest request) {
-        User currentUser = getCurrentUser();
-        Task task = taskRepository.findById(taskId)
+    @PreAuthorize("hasRole('ADMIN')")
+    public TaskResponse updateTask(Long id, UpdateTaskRequest request) {
+        Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
 
-        if (!canUpdateTaskStatus(task, currentUser)) {
-            throw new UnauthorizedAccessException("You don't have permission to update this task's status");
-        }
-
-        task.setStatus(request.getStatus());
-        return mapToTaskResponse(taskRepository.save(task));
-    }
-
-    @Override
-    @Transactional
-    public TaskResponse updateTask(Long taskId, UpdateTaskRequest request) {
-        User currentUser = getCurrentUser();
-        Task task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
-
-        if (!canUpdateTaskDetails(task, currentUser)) {
+        if (!canUpdateTaskDetails(task, getCurrentUser())) {
             throw new UnauthorizedAccessException("You don't have permission to update this task");
         }
 
@@ -171,18 +153,60 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
-    @Transactional
-    public void deleteTask(Long taskId) {
-        User currentUser = getCurrentUser();
-        Task task = taskRepository.findById(taskId)
+    @PreAuthorize("hasRole('ADMIN')")
+    public void deleteTask(Long id) {
+        Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
 
         // Sadece görevi oluşturan kişi veya admin silebilir
-        if (!task.getCreatedBy().equals(currentUser) && !currentUser.getRole().equals(Role.ROLE_ADMIN)) {
+        if (!task.getCreatedBy().equals(getCurrentUser()) && !getCurrentUser().getRole().equals(Role.ROLE_ADMIN)) {
             throw new UnauthorizedAccessException("You don't have permission to delete this task");
         }
 
         taskRepository.delete(task);
+    }
+
+    @Override
+    public TaskResponse updateTaskStatus(Long taskId, UpdateTaskStatusRequest request) {
+        Task task = taskRepository.findById(taskId)
+            .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
+        
+        User currentUser = getCurrentUser();
+        if (!canUpdateTaskStatus(task, currentUser)) {
+            throw new UnauthorizedAccessException("You can only update your own tasks");
+        }
+
+        TaskStatus oldStatus = task.getStatus();
+        task.setStatus(request.getStatus());
+        Task updatedTask = taskRepository.save(task);
+
+        // Notify about status change
+        notificationService.notifyTaskStatusChange(updatedTask, oldStatus);
+
+        return mapToTaskResponse(updatedTask);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TaskResponse> getMyTasks() {
+        User currentUser = getCurrentUser();
+        return taskRepository.findByAssignedToOrCollaboratorsContaining(currentUser, currentUser)
+                .stream()
+                .map(this::mapToTaskResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TaskResponse> getCreatedTasks() {
+        User currentUser = getCurrentUser();
+        if (!currentUser.getRole().equals(Role.ROLE_ADMIN)) {
+            throw new UnauthorizedAccessException("Only admins can view all created tasks");
+        }
+        return taskRepository.findByCreatedById(currentUser.getId())
+                .stream()
+                .map(this::mapToTaskResponse)
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -255,27 +279,19 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public void addCollaborator(Long taskId, Long userId) {
-        User currentUser = getCurrentUser();
         Task task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
+            .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        if (!canUpdateTaskDetails(task, currentUser)) {
-            throw new UnauthorizedAccessException("You don't have permission to add collaborators");
+        if (!isInSameTeam(task.getAssignedTo(), user)) {
+            throw new UnauthorizedAccessException("Can only add collaborators from the same team");
         }
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-                
         task.getCollaborators().add(user);
         taskRepository.save(task);
 
-        // Yeni collaborator'a bildirim gönder
-        notificationService.createNotification(
-            user,
-            task,
-            NotificationType.ADDED_AS_COLLABORATOR,
-            String.format("You have been added as a collaborator to task: %s", task.getTitle())
-        );
+        notificationService.notifyCollaboratorAdded(task, user);
     }
 
     @Override
@@ -298,31 +314,79 @@ public class TaskServiceImpl implements TaskService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public TaskStatisticsResponse getStatistics() {
+        User currentUser = getCurrentUser();
+        List<Task> tasks = currentUser.getRole() == Role.ROLE_ADMIN 
+            ? taskRepository.findAll()
+            : taskRepository.findByAssignedTo(currentUser);
+
+        return TaskStatisticsResponse.builder()
+            .totalTasks(tasks.size())
+            .todoTasks(tasks.stream().filter(t -> t.getStatus() == TaskStatus.TODO).count())
+            .inProgressTasks(tasks.stream().filter(t -> t.getStatus() == TaskStatus.IN_PROGRESS).count())
+            .completedTasks(tasks.stream().filter(t -> t.getStatus() == TaskStatus.DONE).count())
+            .overdueTasks(tasks.stream().filter(t -> t.getDueDate().isBefore(LocalDateTime.now())).count())
+            .build();
+    }
+
+    @Override
+    public CommentResponse addComment(Long taskId, CreateCommentRequest request) {
+        Task task = taskRepository.findById(taskId)
+            .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
+        User currentUser = getCurrentUser();
+
+        // Yorum yapma yetkisi kontrolü
+        if (!canCommentOnTask(task, currentUser)) {
+            throw new UnauthorizedAccessException("You don't have permission to comment on this task");
+        }
+
+        Comment comment = Comment.builder()
+            .content(request.getContent())
+            .task(task)
+            .author(currentUser)
+            .build();
+
+        Comment savedComment = commentRepository.save(comment);
+        return mapToCommentResponse(savedComment);
+    }
+
+    @Override
+    public List<CommentResponse> getTaskComments(Long taskId) {
+        Task task = taskRepository.findById(taskId)
+            .orElseThrow(() -> new ResourceNotFoundException("Task not found"));
+        
+        return commentRepository.findByTaskOrderByCreatedAtDesc(task).stream()
+            .map(this::mapToCommentResponse)
+            .collect(Collectors.toList());
+    }
+
     private User getCurrentUser() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+            .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 
     private TaskResponse mapToTaskResponse(Task task) {
         return TaskResponse.builder()
-                .id(task.getId())
-                .title(task.getTitle())
-                .description(task.getDescription())
-                .status(task.getStatus())
-                .priority(task.getPriority())
-                .createdAt(task.getCreatedAt())
-                .dueDate(task.getDueDate())
-                .createdBy(mapToUserSummary(task.getCreatedBy()))
-                .assignedTo(task.getAssignedTo() != null ? mapToUserSummary(task.getAssignedTo()) : null)
-                .collaborators(task.getCollaborators().stream()
-                        .map(this::mapToUserSummary)
-                        .collect(Collectors.toSet()))
-                .category(mapToCategorySummary(task.getCategory()))
-                .tags(task.getTags().stream()
-                        .map(this::mapToTagSummary)
-                        .collect(Collectors.toSet()))
-                .build();
+            .id(task.getId())
+            .title(task.getTitle())
+            .description(task.getDescription())
+            .status(task.getStatus())
+            .priority(task.getPriority())
+            .createdAt(task.getCreatedAt())
+            .dueDate(task.getDueDate())
+            .createdBy(mapToUserSummary(task.getCreatedBy()))
+            .assignedTo(task.getAssignedTo() != null ? mapToUserSummary(task.getAssignedTo()) : null)
+            .category(task.getCategory() != null ? mapToCategorySummary(task.getCategory()) : null)
+            .tags(task.getTags().stream().map(this::mapToTagSummary).collect(Collectors.toSet()))
+            .collaborators(task.getCollaborators().stream().map(this::mapToUserSummary).collect(Collectors.toSet()))
+            .recentComments(task.getComments().stream()
+                .sorted(Comparator.comparing(Comment::getCreatedAt).reversed())
+                .limit(5)
+                .map(this::mapToCommentResponse)
+                .collect(Collectors.toList()))
+            .build();
     }
 
     private TaskResponse.UserSummary mapToUserSummary(User user) {
@@ -334,6 +398,8 @@ public class TaskServiceImpl implements TaskService {
     }
 
     private TaskResponse.CategorySummary mapToCategorySummary(Category category) {
+        if (category == null) return null;
+        
         return TaskResponse.CategorySummary.builder()
                 .id(category.getId())
                 .name(category.getName())
@@ -349,25 +415,47 @@ public class TaskServiceImpl implements TaskService {
                 .build();
     }
 
-    // Yetki kontrolü için yardımcı metod
-    private boolean hasTaskAccess(Task task, User user) {
-        return user.getRole().equals(Role.ROLE_ADMIN) ||
-               task.getCreatedBy().equals(user) ||
+    private boolean canUpdateTaskDetails(Task task, User user) {
+        return user.getRole() == Role.ROLE_ADMIN ||
+               task.getCreatedBy().equals(user);
+    }
+
+    private boolean canCommentOnTask(Task task, User user) {
+        return user.getRole() == Role.ROLE_ADMIN ||
                task.getAssignedTo().equals(user) ||
                task.getCollaborators().contains(user);
     }
 
-    // Task durumu güncelleme yetkisi kontrolü
-    private boolean canUpdateTaskStatus(Task task, User user) {
-        return user.getRole().equals(Role.ROLE_ADMIN) ||
-               task.getAssignedTo().equals(user) ||
-               task.getCollaborators().contains(user) ||
-               task.getCreatedBy().equals(user);
+    private CommentResponse mapToCommentResponse(Comment comment) {
+        return CommentResponse.builder()
+            .id(comment.getId())
+            .content(comment.getContent())
+            .author(CommentResponse.UserSummary.builder()
+                .id(comment.getAuthor().getId())
+                .name(comment.getAuthor().getName())
+                .email(comment.getAuthor().getEmail())
+                .build())
+            .createdAt(comment.getCreatedAt())
+            .build();
     }
 
-    // Task detayları güncelleme yetkisi kontrolü
-    private boolean canUpdateTaskDetails(Task task, User user) {
-        return user.getRole().equals(Role.ROLE_ADMIN) ||
-               task.getCreatedBy().equals(user);
+    private boolean isInSameTeam(User user1, User user2) {
+        return user1.getTeam() != null && 
+               user2.getTeam() != null && 
+               user1.getTeam().getId().equals(user2.getTeam().getId());
+    }
+
+    private boolean canViewTask(Task task, User user) {
+        return user.getRole() == Role.ROLE_ADMIN ||
+               task.getCreatedBy().equals(user) ||
+               task.getAssignedTo().equals(user) ||
+               task.getCollaborators().contains(user) ||
+               isInSameTeam(task.getAssignedTo(), user);
+    }
+
+    private boolean canUpdateTaskStatus(Task task, User user) {
+        return user.getRole() == Role.ROLE_ADMIN ||
+               task.getAssignedTo().equals(user) ||
+               task.getCollaborators().contains(user);
     }
 } 

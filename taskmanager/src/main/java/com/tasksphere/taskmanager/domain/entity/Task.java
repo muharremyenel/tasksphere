@@ -65,7 +65,7 @@ public class Task {
     @Builder.Default
     private Set<Tag> tags = new HashSet<>();
 
-    @ManyToMany(fetch = FetchType.LAZY)
+    @ManyToMany
     @JoinTable(
         name = "task_collaborators",
         joinColumns = @JoinColumn(name = "task_id"),
@@ -73,6 +73,10 @@ public class Task {
     )
     @Builder.Default
     private Set<User> collaborators = new HashSet<>();
+
+    @OneToMany(mappedBy = "task", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private Set<Comment> comments = new HashSet<>();
 
     @PrePersist
     protected void onCreate() {

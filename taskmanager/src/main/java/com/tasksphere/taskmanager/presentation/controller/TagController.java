@@ -4,11 +4,11 @@ import com.tasksphere.taskmanager.application.dto.tag.CreateTagRequest;
 import com.tasksphere.taskmanager.application.dto.tag.UpdateTagRequest;
 import com.tasksphere.taskmanager.application.dto.tag.TagResponse;
 import com.tasksphere.taskmanager.application.service.TagService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -16,23 +16,17 @@ import java.util.List;
 @RequestMapping("/api/v1/tags")
 @RequiredArgsConstructor
 public class TagController {
-
     private final TagService tagService;
+
+    @GetMapping
+    public ResponseEntity<List<TagResponse>> getTags() {
+        return ResponseEntity.ok(tagService.getTags());
+    }
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<TagResponse> createTag(@Valid @RequestBody CreateTagRequest request) {
         return ResponseEntity.ok(tagService.createTag(request));
-    }
-
-    @GetMapping
-    public ResponseEntity<List<TagResponse>> getAllTags() {
-        return ResponseEntity.ok(tagService.getAllTags());
-    }
-
-    @GetMapping("/{id}")
-    public ResponseEntity<TagResponse> getTagById(@PathVariable Long id) {
-        return ResponseEntity.ok(tagService.getTagById(id));
     }
 
     @DeleteMapping("/{id}")
@@ -45,8 +39,9 @@ public class TagController {
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<TagResponse> updateTag(
-            @PathVariable Long id,
-            @Valid @RequestBody UpdateTagRequest request) {
+        @PathVariable Long id,
+        @Valid @RequestBody UpdateTagRequest request
+    ) {
         return ResponseEntity.ok(tagService.updateTag(id, request));
     }
 } 

@@ -5,13 +5,9 @@ import com.tasksphere.taskmanager.application.dto.tag.TagResponse;
 import com.tasksphere.taskmanager.application.dto.tag.UpdateTagRequest;
 import com.tasksphere.taskmanager.application.service.TagService;
 import com.tasksphere.taskmanager.domain.entity.Tag;
-import com.tasksphere.taskmanager.domain.entity.User;
 import com.tasksphere.taskmanager.domain.exception.ResourceNotFoundException;
-import com.tasksphere.taskmanager.domain.exception.UnauthorizedAccessException;
 import com.tasksphere.taskmanager.infrastructure.persistence.repository.TagRepository;
-import com.tasksphere.taskmanager.infrastructure.persistence.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,38 +18,23 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional
 public class TagServiceImpl implements TagService {
-
     private final TagRepository tagRepository;
-    private final UserRepository userRepository;
+
+    @Override
+    public List<TagResponse> getTags() {
+        return tagRepository.findAll().stream()
+            .map(this::mapToTagResponse)
+            .collect(Collectors.toList());
+    }
 
     @Override
     public TagResponse createTag(CreateTagRequest request) {
-        User currentUser = getCurrentUser();
-
         Tag tag = Tag.builder()
-                .name(request.getName())
-                .colorHex(request.getColorHex())
-                .creator(currentUser)
-                .build();
+            .name(request.getName())
+            .colorHex(request.getColorHex())
+            .build();
 
-        Tag savedTag = tagRepository.save(tag);
-        return mapToTagResponse(savedTag);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<TagResponse> getAllTags() {
-        return tagRepository.findAll().stream()
-                .map(this::mapToTagResponse)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public TagResponse getTagById(Long id) {
-        Tag tag = tagRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Tag not found"));
-        return mapToTagResponse(tag);
+        return mapToTagResponse(tagRepository.save(tag));
     }
 
     @Override
@@ -68,25 +49,19 @@ public class TagServiceImpl implements TagService {
     public TagResponse updateTag(Long id, UpdateTagRequest request) {
         Tag tag = tagRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Tag not found"));
-        
+
         tag.setName(request.getName());
         tag.setColorHex(request.getColorHex());
-        
+
         return mapToTagResponse(tagRepository.save(tag));
     }
 
     private TagResponse mapToTagResponse(Tag tag) {
         return TagResponse.builder()
-                .id(tag.getId())
-                .name(tag.getName())
-                .colorHex(tag.getColorHex())
-                .usageCount((long) tag.getTasks().size())
-                .build();
-    }
-
-    private User getCurrentUser() {
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        return userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+            .id(tag.getId())
+            .name(tag.getName())
+            .colorHex(tag.getColorHex())
+            .usageCount((long) tag.getTasks().size())
+            .build();
     }
 } 

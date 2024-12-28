@@ -1,23 +1,18 @@
 package com.tasksphere.taskmanager.application.dto.notification;
 
+import com.tasksphere.taskmanager.domain.enums.NotificationType;
 import lombok.Builder;
 import lombok.Data;
+
 import java.time.LocalDateTime;
 
 @Data
 @Builder
 public class NotificationResponse {
     private Long id;
-    private String title;
-    private String content;
+    private String message;
+    private NotificationType type;
+    private Long taskId;
     private boolean read;
     private LocalDateTime createdAt;
-    private TaskSummary task;
-
-    @Data
-    @Builder
-    public static class TaskSummary {
-        private Long id;
-        private String title;
-    }
 } 

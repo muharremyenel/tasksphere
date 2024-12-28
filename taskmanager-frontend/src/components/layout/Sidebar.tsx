@@ -1,27 +1,37 @@
-import { Link } from "react-router-dom"
-import { RiDashboardLine, RiTaskLine, RiTeamLine, RiSettings4Line } from "react-icons/ri"
-
-const menuItems = [
-  { icon: RiDashboardLine, label: "Dashboard", path: "/" },
-  { icon: RiTaskLine, label: "Tasks", path: "/tasks" },
-  { icon: RiTeamLine, label: "Team", path: "/team" },
-  { icon: RiSettings4Line, label: "Settings", path: "/settings" }
-]
+import { Link } from 'react-router-dom'
+import { RiDashboardLine, RiTeamLine, RiUserLine, RiPriceTag3Line, RiListCheck } from 'react-icons/ri'
+import { useAuthStore } from '@/stores/authStore'
 
 export default function Sidebar() {
+  const { user } = useAuthStore()
+  const isAdmin = user?.role === 'ROLE_ADMIN'
+
   return (
-    <aside className="w-64 border-r bg-background p-4">
-      <nav className="space-y-2">
-        {menuItems.map((item) => (
-          <Link
-            key={item.path}
-            to={item.path}
-            className="flex items-center gap-2 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 hover:bg-gray-100"
-          >
-            <item.icon className="h-5 w-5" />
-            <span>{item.label}</span>
-          </Link>
-        ))}
+    <aside className="w-64 bg-gray-50 border-r h-full">
+      <nav className="p-4 space-y-2">
+        <Link to="/" className="flex items-center gap-2 p-2 hover:bg-gray-100 rounded-lg">
+          <RiDashboardLine /> Dashboard
+        </Link>
+        <Link to="/tasks" className="flex items-center gap-2 p-2 hover:bg-gray-100 rounded-lg">
+          <RiListCheck /> Tasks
+        </Link>
+        
+        {isAdmin && (
+          <>
+            <Link to="/admin/users" className="flex items-center gap-2 p-2 hover:bg-gray-100 rounded-lg">
+              <RiUserLine /> Users
+            </Link>
+            <Link to="/admin/teams" className="flex items-center gap-2 p-2 hover:bg-gray-100 rounded-lg">
+              <RiTeamLine /> Teams
+            </Link>
+            <Link to="/admin/categories" className="flex items-center gap-2 p-2 hover:bg-gray-100 rounded-lg">
+              <RiPriceTag3Line /> Categories
+            </Link>
+            <Link to="/admin/tags" className="flex items-center gap-2 p-2 hover:bg-gray-100 rounded-lg">
+              <RiPriceTag3Line /> Tags
+            </Link>
+          </>
+        )}
       </nav>
     </aside>
   )

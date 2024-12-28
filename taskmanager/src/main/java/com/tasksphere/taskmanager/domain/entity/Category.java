@@ -1,20 +1,21 @@
 package com.tasksphere.taskmanager.domain.entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.Builder;
-import lombok.AllArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
-@Data
 @Entity
+@Table(name = "categories")
+@Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "categories")
 public class Category {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -23,14 +24,8 @@ public class Category {
     @Column(nullable = false)
     private String name;
 
-    private String description;
-
-    @Column(name = "color_hex")
+    @Column(name = "color_hex", nullable = false)
     private String colorHex;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "creator_id", nullable = false)
-    private User creator;
 
     @OneToMany(mappedBy = "category")
     @Builder.Default

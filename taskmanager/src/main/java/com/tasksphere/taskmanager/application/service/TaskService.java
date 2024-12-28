@@ -6,10 +6,14 @@ import com.tasksphere.taskmanager.application.dto.task.UpdateTaskStatusRequest;
 import com.tasksphere.taskmanager.application.dto.task.UpdateTaskRequest;
 import com.tasksphere.taskmanager.application.dto.task.TaskSearchRequest;
 import com.tasksphere.taskmanager.application.dto.tag.TagResponse;
+import com.tasksphere.taskmanager.application.dto.statistics.TaskStatisticsResponse;
+import com.tasksphere.taskmanager.application.dto.comment.CreateCommentRequest;
+import com.tasksphere.taskmanager.application.dto.comment.CommentResponse;
 
 import java.util.List;
 
 public interface TaskService {
+    List<TaskResponse> getTasks();
     TaskResponse createTask(CreateTaskRequest request);
     List<TaskResponse> getMyTasks();
     List<TaskResponse> getCreatedTasks();
@@ -23,4 +27,7 @@ public interface TaskService {
     void addCollaborator(Long taskId, Long userId);
     void removeCollaborator(Long taskId, Long userId);
     List<TaskResponse> getCollaborativeTasks();
+    TaskStatisticsResponse getStatistics();
+    CommentResponse addComment(Long taskId, CreateCommentRequest request);
+    List<CommentResponse> getTaskComments(Long taskId);
 } 
